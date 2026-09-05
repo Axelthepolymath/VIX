@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Thought → Visualization Lab</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: system-ui, -apple-system, Segoe UI, sans-serif;
+    background: #0d1117;
+    color: #e6edf3;
+  }
+  header {
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+    padding: .85rem 1.25rem;
+    background: #161b22;
+    border-bottom: 1px solid #30363d;
+  }
+  header h1 { margin: 0; font-size: 1.05rem; font-weight: 600; }
+  .wrap {
+    display: grid;
+    grid-template-columns: 300px 1fr;
+    min-height: calc(100vh - 52px);
+  }
+  @media (max-width: 800px) { .wrap { grid-template-columns: 1fr; } }
+  aside {
+    padding: 1.1rem;
+    background: #161b22;
+    border-right: 1px solid #30363d;
+  }
+  label { display: block; font-size: .8rem; color: #8b949e; margin-bottom: .35rem; }
+  textarea {
+    width: 100%;
+    height: 110px;
+    background: #0d1117;
+    color: #e6edf3;
+    border: 1px solid #30363d;
+    border-radius: 8px;
+    padding: .7rem;
+    resize: vertical;
+  }
+  button {
+    margin-top: .75rem;
+    width: 100%;
+    padding: .7rem;
+    border: 0;
+    border-radius: 8px;
+    background: #238636;
+    color: #fff;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  button:hover { background: #2ea043; }
+  .hint { font-size: .78rem; color: #8b949e; line-height: 1.45; margin-top: .8rem; }
+  main { padding: 1.1rem 1.25rem 2rem; }
+  .canvas-card {
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .canvas-head {
+    display: flex;
+    align-items: center;
+    gap: .45rem;
+    padding: .45rem .75rem;
+    font-size: .78rem;
+    color: #8b949e;
+    border-bottom: 1px solid #30363d;
+  }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: #3fb950; }
+  canvas { display: block; width: 100%; height: auto; background: #0d1117; }
+  .math {
+    margin-top: 1rem;
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 10px;
+    padding: 1rem 1.1rem;
+  }
+  .math h2 { margin: 0 0 .5rem; font-size: 1rem; }
+  .math p { margin: .35rem 0; color: #c9d1d9; font-size: .92rem; }
+  code {
+    background: #0d1117;
+    border: 1px solid #30363d;
+    padding: .12rem .35rem;
+    border-radius: 4px;
+    font-size: .85rem;
+  }
+  .sliders { display: grid; gap: .7rem; margin-top: 1rem; }
+  .row { display: grid; grid-template-columns: 110px 1fr 42px; align-items: center; gap: .6rem; font-size: .85rem; }
+  input[type=range] { width: 100%; }
+  .val { color: #f0883e; text-align: right; }
+</style>
+</head>
+<body>
+<header>
+  <span>▣</span>
+  <h1>Thought → Visualization Lab</h1>
+</header>
+<div class="wrap">
+  <aside>
+    <label for="thought">Describe the motion</label>
+    <textarea id="thought">the ball moves</textarea>
+    <button id="go">Visualize</button>
+    <p class="hint">
+      Use simple words: moves, bouncing, slow, fast, red, green.<br>
+      The site turns that thought into position, velocity, and a picture.
+    </p>
+  </aside>
+  <main>
+    <div class="canvas-card">
+      <div class="canvas-head"><span class="dot"></span> Motion canvas</div>
+      <canvas id="stage" width="900" height="420"></canvas>
+    </div>
+    <div class="math">
+      <h2>How we visualize motion with geometry</h2>
+      <p>The ball is a point on a plane. Each frame we add velocity to position:</p>
+      <p><code>x ← x + v<sub>x</sub></code> &nbsp; <code>y ← y + v<sub>y</sub></code></p>
+      <p>Hit a wall → reflect that component: <code>v<sub>x</sub> ← −v<sub>x</sub></code> or <code>v<sub>y</sub> ← −v<sub>y</sub></code>.</p>
+      <p>The orange arrow is the velocity vector (direction + speed).</p>
+      <div class="sliders">
+        <div class="row"><span>Speed x (vₓ)</span><input type="range" id="vx" min="-8" max="8" value="3" step="0.5"><span class="val" id="vxv">3</span></div>
+        <div class="row"><span>Speed y (vᵧ)</span><input type="range" id="vy" min="-8" max="8" value="2" step="0.5"><span class="val" id="vyv">2</span></div>
+        <div class="row"><span>Radius</span><input type="range" id="r" min="8" max="40" value="20"><span class="val" id="rv">20</span></div>
+      </div>
+    </div>
+  </main>
+</div>
+<script>
+const canvas = document.getElementById('stage');
+const ctx = canvas.getContext('2d');
+const thoughtEl = document.getElementById('thought');
+
+const ball = { x: 120, y: 210, vx: 3, vy: 2, r: 20, color: '#58a6ff' };
+
+function parseThought(text) {
+  const t = (text || '').toLowerCase();
+  ball.color = t.includes('red') ? '#f85149' : t.includes('green') ? '#3fb950' : '#58a6ff';
+  const signX = ball.vx >= 0 ? 1 : -1;
+  const signY = ball.vy >= 0 ? 1 : -1;
+  if (t.includes('slow')) { ball.vx = signX * 1.2; ball.vy = signY * 0.9; }
+  else if (t.includes('fast')) { ball.vx = signX * 6; ball.vy = signY * 4; }
+  else { ball.vx = signX * 3; ball.vy = signY * 2; }
+  document.getElementById('vx').value = ball.vx;
+  document.getElementById('vy').value = ball.vy;
+  document.getElementById('vxv').textContent = ball.vx;
+  document.getElementById('vyv').textContent = ball.vy;
+}
+
+function step() {
+  ball.x += ball.vx;
+  ball.y += ball.vy;
+  if (ball.x - ball.r < 0 || ball.x + ball.r > canvas.width) {
+    ball.vx *= -1;
+    ball.x = Math.max(ball.r, Math.min(canvas.width - ball.r, ball.x));
+  }
+  if (ball.y - ball.r < 0 || ball.y + ball.r > canvas.height) {
+    ball.vy *= -1;
+    ball.y = Math.max(ball.r, Math.min(canvas.height - ball.r, ball.y));
+  }
+}
+
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.strokeStyle = '#21262d';
+  ctx.lineWidth = 1;
+  for (let x = 0; x <= canvas.width; x += 40) {
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke();
+  }
+  for (let y = 0; y <= canvas.height; y += 40) {
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
+  }
+  ctx.beginPath();
+  ctx.arc(ball.x, ball.y, ball.r, 0, Math.PI * 2);
+  ctx.fillStyle = ball.color;
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(ball.x, ball.y);
+  ctx.lineTo(ball.x + ball.vx * 10, ball.y + ball.vy * 10);
+  ctx.strokeStyle = '#f0883e';
+  ctx.lineWidth = 3;
+  ctx.stroke();
+}
+
+function loop() {
+  step();
+  draw();
+  requestAnimationFrame(loop);
+}
+
+document.getElementById('go').onclick = () => {
+  parseThought(thoughtEl.value);
+  ball.x = 120;
+  ball.y = canvas.height / 2;
+};
+
+['vx', 'vy', 'r'].forEach(id => {
+  const el = document.getElementById(id);
+  el.oninput = () => {
+    document.getElementById(id + 'v').textContent = el.value;
+    if (id === 'vx') ball.vx = +el.value;
+    if (id === 'vy') ball.vy = +el.value;
+    if (id === 'r') ball.r = +el.value;
+  };
+});
+
+parseThought(thoughtEl.value);
+loop();
+</script>
+</body>
+</html>
+
